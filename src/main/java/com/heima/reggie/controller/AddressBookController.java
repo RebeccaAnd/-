@@ -63,6 +63,22 @@ public class AddressBookController {
         //再次执行更新操作
         addressBookService.updateById(addressBook);
         return R.success(addressBook);
+    }
 
+    /**
+     * 下单过程中获取默认地址
+     */
+    @GetMapping("/default")
+    public R<AddressBook> defaultAddress() {
+        //获取当前用户id
+        Long userId = BaseContext.getCurrentId();
+        //条件构造器
+        LambdaQueryWrapper<AddressBook> queryWrapper = new LambdaQueryWrapper<>();
+        //当前用户
+        queryWrapper.eq(userId != null, AddressBook::getUserId, userId);
+        //默认地址
+        queryWrapper.eq(AddressBook::getIsDefault, 1);
+        AddressBook addressBook = addressBookService.getOne(queryWrapper);
+        return R.success(addressBook);
     }
 }

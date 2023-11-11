@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.heima.reggie.common.R;
 import com.heima.reggie.config.entity.Category;
 import com.heima.reggie.config.entity.Dish;
+import com.heima.reggie.config.entity.DishFlavor;
 import com.heima.reggie.dto.DishDto;
 import com.heima.reggie.service.CategoryService;
 import com.heima.reggie.service.DishFlavorService;
@@ -133,20 +134,64 @@ public class DishController {
         return R.success("删除成功");
     }
 
-    /*
-     * 根据条件查询对应菜品数据
+    /**
+     * 根据条件查询对应菜品数据(后续flavors原因进行修改)
      */
+//    @GetMapping("/list")
+//    public R<List<Dish>> list(Dish dish) {
+//        //构造查询条件对象
+//        LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
+//        queryWrapper.eq(dish.getCategoryId() != null,Dish::getCategoryId,dish.getCategoryId());
+//        queryWrapper.eq(Dish::getStatus,1); //添加条件,状态为1(起售状态的菜品)
+//        //添加排序条件
+//        queryWrapper.orderByAsc(Dish::getSort).orderByDesc(Dish::getUpdateTime);
+//
+//        List<Dish> list = dishService.list(queryWrapper);//最后拿到list集合
+//        return R.success(list);
+//    }
     @GetMapping("/list")
-    public R<List<Dish>> list(Dish dish) {
-        //构造查询条件对象
+    public R<List<DishDto>> get(Dish dish) {
+        //条件查询器
         LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(dish.getCategoryId() != null,Dish::getCategoryId,dish.getCategoryId());
-        queryWrapper.eq(Dish::getStatus,1); //添加条件,状态为1(起售状态的菜品)
-        //添加排序条件
+        //根据传进来的categoryId查询
+        queryWrapper.eq(dish.getCategoryId() != null,Dish::getCategoryId, dish.getCategoryId());
+        //只查询状态为1的菜品（在售菜品）
+        queryWrapper.eq(Dish::getStatus, 1);
+        //简单排下序，其实也没啥太大作用
         queryWrapper.orderByAsc(Dish::getSort).orderByDesc(Dish::getUpdateTime);
-
-        List<Dish> list = dishService.list(queryWrapper);//最后拿到list集合
-        return R.success(list);
+        //获取查询到的结果作为返回值
+        List<Dish> list = dishService.list(queryWrapper);
+        log.info("查询到的菜品信息list:{}",list);
+        //遍历list中的每一条数据
+        List<DishDto> dishDtoList = list.stream().map((item) -> {
+            //创建一个dishDto对象
+            DishDto dishDto = new DishDto();
+            //将item的属性全都copy到dishDto里
+            BeanUtils.copyProperties(item, dishDto);
+            //由于dish表中没有categoryName属性，只存了categoryId
+            Long categoryId = item.getCategoryId();
+            //所以我们要根据categoryId查询对应的category
+            Category category = categoryService.getById(categoryId);
+            if (category != null) {
+                //然后取出categoryName，赋值给dishDto
+                dishDto.setCategoryName(category.getName());
+            }
+            //然后获取一下菜品id，根据菜品id去dishFlavor表中查询对应的口味，并赋值给dishDto
+            Long itemId = item.getId();
+            //条件构造器
+            LambdaQueryWrapper<DishFlavor> lambdaQueryWrapper = new LambdaQueryWrapper<>();
+            //条件就是菜品id
+            lambdaQueryWrapper.eq(itemId != null, DishFlavor::getDishId, itemId);
+            //根据菜品id，查询到菜品口味
+            List<DishFlavor> flavors = dishFlavorService.list(lambdaQueryWrapper);
+            //赋给dishDto的对应属性
+            dishDto.setFlavors(flavors);
+            //并将dishDto作为结果返回
+            return dishDto;
+            //将所有返回结果收集起来，封装成List
+        }).collect(Collectors.toList());
+        return R.success(dishDtoList);
     }
+
 
 }
